@@ -16,22 +16,45 @@ function seed() {
     ]))
   }
   if (!localStorage.getItem('categorias')) {
-    localStorage.setItem('categorias', JSON.stringify(['Clássicos','Especiais']))
+    localStorage.setItem('categorias', JSON.stringify(['Clássicos', 'Especiais']))
   }
   if (!localStorage.getItem('logoCliente')) {
-    localStorage.setItem('logoCliente','/images/logocliente.jpg')
+    localStorage.setItem('logoCliente', '/images/logocliente.jpg')
   }
   if (!localStorage.getItem('banners')) {
-    localStorage.setItem('banners', JSON.stringify(['/images/banner1.png','/images/banner2.png','/images/banner3.png']))
+    localStorage.setItem('banners', JSON.stringify(['/images/banner1.png', '/images/banner2.png', '/images/banner3.png']))
   }
-  if (!localStorage.getItem('corPrimaria')) localStorage.setItem('corPrimaria','#2563eb')
-  if (!localStorage.getItem('corSecundaria')) localStorage.setItem('corSecundaria','#22c55e')
-  if (!localStorage.getItem('whatsappLoja')) localStorage.setItem('whatsappLoja','11999825998')
-  if (!localStorage.getItem('modoExibicao')) localStorage.setItem('modoExibicao','cards')
+  if (!localStorage.getItem('corPrimaria')) localStorage.setItem('corPrimaria', '#2563eb')
+  if (!localStorage.getItem('corSecundaria')) localStorage.setItem('corSecundaria', '#22c55e')
+  if (!localStorage.getItem('whatsappLoja')) localStorage.setItem('whatsappLoja', '11999825998')
+  if (!localStorage.getItem('modoExibicao')) localStorage.setItem('modoExibicao', 'cards')
 }
 
-export default function App(){
-  useEffect(()=>{ seed() },[])
+export default function App() {
+  useEffect(() => { seed() }, [])
+
+  function Painel() {
+    const pedidos = JSON.parse(localStorage.getItem('pedidos') || '[]');
+    const unreadCount = pedidos.filter(p => p.unread).length;
+
+    const Card = ({ to, children, color }) => (
+      <Link to={to} className={`${color} text-white p-6 rounded-lg shadow hover:brightness-110 relative`}>
+        {children}
+      </Link>
+    );
+
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <h1 className="text-3xl font-bold mb-6">👩‍💼 Painel do Lojista</h1>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Card to="/dashboard" color="bg-blue-600">📊 Dashboard</Card>
+          <Card to="/pedidos" color={unreadCount > 0 ? "bg-green-700 animate-pulse" : "bg-green-600"}>📦 Pedido</Card>
+          <Card to="/lojista/produtos" color="bg-yellow-500">🧰 Produtos & Categorias</Card>
+          <Card to="/config" color="bg-purple-600">⚙️ Configurações</Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -49,6 +72,8 @@ export default function App(){
         <Route path="/pedidos" element={<ResumoPedidos />} />
         <Route path="/lojista/produtos" element={<GerenciarProdutos />} />
         <Route path="/config" element={<ConfiguracoesGerais />} />
+        <Route path="/lojista" element={<Painel />}
+        />
         <Route
           path="/lojista"
           element={

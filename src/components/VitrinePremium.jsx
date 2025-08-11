@@ -91,8 +91,13 @@ export default function VitrinePremium() {
     setEtapa('processando');
     setTimeout(() => {
       const pedido = {
-        nome, endereco, itens: carrinho, total,
-        data: new Date().toLocaleString('pt-BR')
+        nome,
+        endereco,
+        itens: carrinho,
+        total,
+        data: new Date().toLocaleString('pt-BR'),
+        status: (JSON.parse(localStorage.getItem('pedidoStatusList') || '[]')[0]) || 'Novo',
+        unread: true
       };
       const store = JSON.parse(localStorage.getItem('pedidos')) || [];
       localStorage.setItem('pedidos', JSON.stringify([pedido, ...store]));
@@ -123,7 +128,7 @@ export default function VitrinePremium() {
     >
       <span className="relative z-10">{children}</span>
       {!disabled && (
-        <span className="absolute inset-0 opacity-0 hover:opacity-10 transition" style={{ background: '#fff' }}/>
+        <span className="absolute inset-0 opacity-0 hover:opacity-10 transition" style={{ background: '#fff' }} />
       )}
     </button>
   );
