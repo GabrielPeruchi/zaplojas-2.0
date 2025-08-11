@@ -18,6 +18,12 @@ export default function VitrinePremium() {
   const [whatsappLoja, setWhatsappLoja] = useState('');
   const [modoExibicao, setModoExibicao] = useState('cards'); // cards | abas | lista
 
+  // Filtros
+  const [q, setQ] = useState('');
+  const [catFiltro, setCatFiltro] = useState('Todas');
+  const [precoMin, setPrecoMin] = useState('');
+  const [precoMax, setPrecoMax] = useState('');
+
   // Carrinho e checkout
   const [carrinho, setCarrinho] = useState([]);
   const [etapa, setEtapa] = useState('vitrine'); // vitrine | carrinho | pagamento | processando | enviar
@@ -39,13 +45,11 @@ export default function VitrinePremium() {
     setModoExibicao(localStorage.getItem('modoExibicao') || 'cards');
   }, []);
 
-  // Auto-rotate dos banners
+  // Auto-rotate dos banners (somente na vitrine)
   useEffect(() => {
-    if (etapa !== 'vitrine') return; // não rotaciona fora da vitrine
+    if (etapa !== 'vitrine') return;
     if (banners.length > 1) {
-      const id = setInterval(() => {
-        setBannerIndex(i => (i + 1) % banners.length);
-      }, 5000);
+      const id = setInterval(() => setBannerIndex(i => (i + 1) % banners.length), 5000);
       return () => clearInterval(id);
     }
   }, [banners, etapa]);
@@ -70,9 +74,7 @@ export default function VitrinePremium() {
       prev.map(i => i.id === id ? { ...i, quantity: i.quantity - 1 } : i).filter(i => i.quantity > 0)
     );
   };
-  const incCart = (id) => {
-    setCarrinho(prev => prev.map(i => i.id === id ? { ...i, quantity: i.quantity + 1 } : i));
-  };
+  const incCart = (id) => setCarrinho(prev => prev.map(i => i.id === id ? { ...i, quantity: i.quantity + 1 } : i));
   const removeItem = (id) => setCarrinho(prev => prev.filter(i => i.id !== id));
 
   // Fluxo checkout
@@ -80,23 +82,18 @@ export default function VitrinePremium() {
     setEtapa('carrinho');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
   const finalizarPedido = () => {
     if (!nome || !endereco) return alert('Preencha seu nome e endereço para continuar.');
     setEtapa('pagamento');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
   const efetuarPagamento = () => {
     setEtapa('processando');
     setTimeout(() => {
       const pedido = {
-        nome,
-        endereco,
-        itens: carrinho,
-        total,
+        nome, endereco, itens: carrinho, total,
         data: new Date().toLocaleString('pt-BR'),
-        status: (JSON.parse(localStorage.getItem('pedidoStatusList') || '[]')[0]) || 'Novo',
+        status: (JSON.parse(localStorage.getItem('pedidoStatusList')||'[]')[0]) || 'Novo',
         unread: true
       };
       const store = JSON.parse(localStorage.getItem('pedidos')) || [];
@@ -105,7 +102,6 @@ export default function VitrinePremium() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 1800);
   };
-
   const enviarWhatsApp = () => {
     const numeroFormatado = '55' + (whatsappLoja || '').replace(/\D/g, '');
     const texto = `Olá, meu nome é ${nome}!\n\nGostaria de pedir:\n${carrinho
@@ -128,7 +124,7 @@ export default function VitrinePremium() {
     >
       <span className="relative z-10">{children}</span>
       {!disabled && (
-        <span className="absolute inset-0 opacity-0 hover:opacity-10 transition" style={{ background: '#fff' }} />
+        <span className="absolute inset-0 opacity-0 hover:opacity-10 transition" style={{ background: '#fff' }}/>
       )}
     </button>
   );
@@ -165,16 +161,46 @@ export default function VitrinePremium() {
     </div>
   );
 
+  // FILTRAGEM
+  const produtosFiltrados = useMemo(() => {
+    let arr = [...produtos];
+    if (q.trim()) {
+      const t = q.toLowerCase();
+      arr = arr.filter(p => p.name.toLowerCase().includes(t));
+    }
+    if (catFiltro !== 'Todas') {
+      arr = arr.filter(p => p.categoria === catFiltro);
+    }
+    const min = parseFloat(precoMin);
+    const max = parseFloat(precoMax);
+    if (!isNaN(min)) arr = arr.filter(p => p.price >= min);
+    if (!isNaN(max)) arr = arr.filter(p => p.price <= max);
+    return arr;
+  }, [produtos, q, catFiltro, precoMin, precoMax]);
+
+  // categorias visíveis segundo o filtro
+  const categoriasVisiveis = useMemo(() => {
+    const set = new Set(produtosFiltrados.map(p => p.categoria));
+    const base = categorias.filter(c => set.has(c));
+    return catFiltro === 'Todas' ? base : base.filter(c => c === catFiltro);
+  }, [categorias, produtosFiltrados, catFiltro]);
+
+  const limparFiltros = () => { setQ(''); setCatFiltro('Todas'); setPrecoMin(''); setPrecoMax(''); };
+
   const gridCards = 'grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6';
 
   const renderProdutos = () => {
-    if (!categorias.length) {
-      return <p className="text-center text-gray-500">Nenhuma categoria configurada.</p>;
+    if (!categoriasVisiveis.length) {
+      return (
+        <div className="text-center text-gray-500">
+          Nenhum produto encontrado com os filtros aplicados.
+        </div>
+      );
     }
 
     if (modoExibicao === 'cards') {
-      return categorias.map((cat, idx) => {
-        const filtrados = produtos.filter(p => p.categoria === cat);
+      return categoriasVisiveis.map((cat, idx) => {
+        const filtrados = produtosFiltrados.filter(p => p.categoria === cat);
         if (!filtrados.length) return null;
         return (
           <section key={idx} className="mb-10">
@@ -188,10 +214,14 @@ export default function VitrinePremium() {
     }
 
     if (modoExibicao === 'abas') {
+      const tabs = catFiltro === 'Todas' ? categoriasVisiveis : [catFiltro].filter(c => categoriasVisiveis.includes(c));
+      // fallback: se filtro resultou em nada, mostra todas visíveis
+      const safeTabs = tabs.length ? tabs : categoriasVisiveis;
+
       return (
         <Tabs>
           <TabList className="flex gap-3 mb-6 justify-center flex-wrap">
-            {categorias.map((c, i) => (
+            {safeTabs.map((c, i) => (
               <Tab
                 key={i}
                 className="px-4 py-2 rounded-full cursor-pointer outline-none text-white"
@@ -201,10 +231,12 @@ export default function VitrinePremium() {
               </Tab>
             ))}
           </TabList>
-          {categorias.map((c, i) => (
+          {safeTabs.map((c, i) => (
             <TabPanel key={i}>
               <div className={gridCards}>
-                {produtos.filter(p => p.categoria === c).map(p => <ProdutoCard key={p.id} p={p} />)}
+                {produtosFiltrados
+                  .filter(p => p.categoria === c)
+                  .map(p => <ProdutoCard key={p.id} p={p} />)}
               </div>
             </TabPanel>
           ))}
@@ -212,9 +244,9 @@ export default function VitrinePremium() {
       );
     }
 
-    // Lista com título (concisa estilosa)
-    return categorias.map((cat, idx) => {
-      const filtrados = produtos.filter(p => p.categoria === cat);
+    // lista com título
+    return categoriasVisiveis.map((cat, idx) => {
+      const filtrados = produtosFiltrados.filter(p => p.categoria === cat);
       if (!filtrados.length) return null;
       return (
         <section key={idx} className="mb-10">
@@ -241,18 +273,12 @@ export default function VitrinePremium() {
   };
 
   // Navegação de banners
-  const prevBanner = () => {
-    if (!banners.length) return;
-    setBannerIndex(i => (i - 1 + banners.length) % banners.length);
-  };
-  const nextBanner = () => {
-    if (!banners.length) return;
-    setBannerIndex(i => (i + 1) % banners.length);
-  };
+  const prevBanner = () => banners.length && setBannerIndex(i => (i - 1 + banners.length) % banners.length);
+  const nextBanner = () => banners.length && setBannerIndex(i => (i + 1) % banners.length);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f6f7fb' }}>
-      {/* HEADER (glass) */}
+      {/* HEADER */}
       <header className="sticky top-0 z-20 backdrop-blur-md bg-white/70 border-b" style={{ borderColor: `${corPrimaria}15` }}>
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -271,7 +297,7 @@ export default function VitrinePremium() {
         </div>
       </header>
 
-      {/* BANNERS — só aparecem na vitrine */}
+      {/* BANNERS — só na vitrine */}
       {etapa === 'vitrine' && banners.length > 0 && (
         <section className="px-4 mt-3">
           <div className="relative max-w-7xl mx-auto rounded-2xl overflow-hidden shadow-lg">
@@ -281,7 +307,6 @@ export default function VitrinePremium() {
               className="w-full object-cover"
               style={{ aspectRatio: '21 / 9' }}
             />
-
             {banners.length > 1 && (
               <>
                 <button
@@ -298,7 +323,6 @@ export default function VitrinePremium() {
                 >
                   <FaChevronRight />
                 </button>
-
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
                   {banners.map((_, i) => (
                     <button
@@ -312,6 +336,54 @@ export default function VitrinePremium() {
                 </div>
               </>
             )}
+          </div>
+        </section>
+      )}
+
+      {/* FILTROS — só na vitrine */}
+      {etapa === 'vitrine' && (
+        <section className="max-w-7xl mx-auto px-6 mt-4">
+          <div
+            className="rounded-xl border bg-white/80 p-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3"
+            style={{ borderColor: `${corPrimaria}20` }}
+          >
+            <input
+              placeholder="Buscar produto..."
+              value={q}
+              onChange={(e)=>setQ(e.target.value)}
+              className="border rounded px-3 py-2 w-full"
+            />
+            <select
+              value={catFiltro}
+              onChange={(e)=>setCatFiltro(e.target.value)}
+              className="border rounded px-3 py-2 w-full"
+            >
+              <option>Todas</option>
+              {categorias.map((c,i)=><option key={i} value={c}>{c}</option>)}
+            </select>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Preço mín."
+              value={precoMin}
+              onChange={(e)=>setPrecoMin(e.target.value)}
+              className="border rounded px-3 py-2 w-full"
+            />
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Preço máx."
+              value={precoMax}
+              onChange={(e)=>setPrecoMax(e.target.value)}
+              className="border rounded px-3 py-2 w-full"
+            />
+            <button
+              onClick={limparFiltros}
+              className="rounded px-3 py-2 text-white"
+              style={{ background: `linear-gradient(135deg, ${corPrimaria}, ${corSecundaria})` }}
+            >
+              Limpar filtros
+            </button>
           </div>
         </section>
       )}
@@ -340,25 +412,14 @@ export default function VitrinePremium() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => decCart(i.id)}
-                        className="w-8 h-8 grid place-items-center rounded-full bg-gray-100 hover:bg-gray-200"
-                        aria-label="Diminuir quantidade"
-                      >
+                      <button onClick={() => decCart(i.id)} className="w-8 h-8 grid place-items-center rounded-full bg-gray-100 hover:bg-gray-200" aria-label="Diminuir quantidade">
                         <FaMinus size={12} />
                       </button>
                       <span className="w-8 text-center">{i.quantity}</span>
-                      <button
-                        onClick={() => incCart(i.id)}
-                        className="w-8 h-8 grid place-items-center rounded-full bg-gray-100 hover:bg-gray-200"
-                        aria-label="Aumentar quantidade"
-                      >
+                      <button onClick={() => incCart(i.id)} className="w-8 h-8 grid place-items-center rounded-full bg-gray-100 hover:bg-gray-200" aria-label="Aumentar quantidade">
                         <FaPlus size={12} />
                       </button>
-                      <button
-                        onClick={() => removeItem(i.id)}
-                        className="ml-2 text-red-600 hover:underline text-sm"
-                      >
+                      <button onClick={() => removeItem(i.id)} className="ml-2 text-red-600 hover:underline text-sm">
                         Remover
                       </button>
                     </div>
@@ -371,18 +432,8 @@ export default function VitrinePremium() {
                 </p>
 
                 <div className="grid gap-3">
-                  <input
-                    placeholder="Seu nome"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    className="border p-2 rounded w-full"
-                  />
-                  <input
-                    placeholder="Endereço de entrega"
-                    value={endereco}
-                    onChange={(e) => setEndereco(e.target.value)}
-                    className="border p-2 rounded w-full"
-                  />
+                  <input placeholder="Seu nome" value={nome} onChange={(e) => setNome(e.target.value)} className="border p-2 rounded w-full" />
+                  <input placeholder="Endereço de entrega" value={endereco} onChange={(e) => setEndereco(e.target.value)} className="border p-2 rounded w-full" />
 
                   <BotaoPrimario onClick={finalizarPedido} className="w-full">
                     Finalizar Pedido
